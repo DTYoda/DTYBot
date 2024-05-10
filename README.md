@@ -1,0 +1,2 @@
+# DTYBot
+DTY Discord Bot
