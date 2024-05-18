@@ -1,7 +1,7 @@
 from typing import Final
 import os
 from dotenv import load_dotenv
-from discord import Intents, Client, Message
+import discord
 
 import sqlite3
 
@@ -18,9 +18,9 @@ TOKEN: str = os.getenv('DISCORD_TOKEN')
 genai.configure(api_key=os.getenv("GOOGLE_TOKEN"))
 
 # Sets up bot's permissions
-intents: Intents = Intents.default()
+intents: discord.Intents = discord.Intents.default()
 intents.message_content = True #NOQA
-client: Client = Client(intents=intents)
+client: discord.Client = discord.Client(intents=intents)
 
 # Bot Startup
 @client.event
@@ -29,7 +29,7 @@ async def on_ready() -> None:
 
 #Incoming messages
 @client.event
-async def on_message(message: Message) -> None:
+async def on_message(message: discord.Message) -> None:
     if message.author != client.user:
         user_message: str = message.content
         channel: str = str(message.channel)
@@ -39,6 +39,9 @@ async def on_message(message: Message) -> None:
         if db.execute("SELECT * FROM userLevels WHERE user = ? AND server = ?", [username, server]).fetchall():
             db.execute("UPDATE userLevels SET messagesSent = messagesSent + 1 WHERE user = ? AND server = ?", [username, server])
             connection.commit()
+            if float(db.execute("SELECT messagesSent FROM userLevels WHERE user = ? AND server = ?", [username, server]).fetchall()[0][0]) % 100 == 0:
+                db.execute("UPDATE userLevels SET level = level + 1 WHERE user = ? AND server = ?", [username, server])
+                connection.commit()
             
         else:
             db.execute("INSERT INTO userLevels (user, messagesSent, level, server) VALUES (?, ?, ?, ?)", [username, 1, 1, server])
@@ -50,6 +53,11 @@ async def on_message(message: Message) -> None:
                 await message.channel.send(response)
             except Exception as e:
                 print(e)
+
+        c_channel = discord.utils.get(message.guild.text_channels, name='🔢counting')
+        messages = await c_channel.history(limit=2).flatten()
+        if message.channel == c_channel and int(messages[1].content) + 1 != int(message.content):
+            await message.delete()
 
 #Main entry point
 def main() -> None:
